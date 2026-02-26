@@ -1,0 +1,57 @@
+name: Backend CI
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'backend/**'
+      - 'scripts/**'
+      - 'ARCHITECTURE.md'
+      - 'README.md'
+      - 'CONTRIBUTING.md'
+      - 'CODE_OF_CONDUCT.md'
+      - 'LICENSE'
+      - 'SECURITY.md'
+      - '.github/workflows/backend-ci.yml'
+      - 'Makefile'
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - 'scripts/**'
+      - 'ARCHITECTURE.md'
+      - 'README.md'
+      - 'CONTRIBUTING.md'
+      - 'CODE_OF_CONDUCT.md'
+      - 'LICENSE'
+      - 'SECURITY.md'
+      - '.github/workflows/backend-ci.yml'
+      - 'Makefile'
+
+jobs:
+  backend-ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+          enable-cache: false
+
+      - name: Install pinned Aegra CLI
+        run: |
+          chmod +x scripts/install-aegra-cli.sh
+          ./scripts/install-aegra-cli.sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Verify Aegra CLI version
+        run: |
+          aegra --version | tee /tmp/aegra-version.txt
+          grep -q "0.7.2" /tmp/aegra-version.txt
+
+      - name: Run backend checks
+        run: |
+          chmod +x scripts/check-thin-runtime.sh scripts/backend_smoke.sh
+          make backend-ci

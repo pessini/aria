@@ -1,0 +1,6 @@
+{
+  "dependencies": ["agents"],
+  "graphs": {
+    "aria": "agents/n8n_agent/agent.py:graph"
+  }
+}

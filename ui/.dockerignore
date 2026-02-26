@@ -1,0 +1,10 @@
+.git
+node_modules
+dist
+.vscode
+.idea
+*.log
+.env*
+langgraph-agents
+.claude
+coverage
