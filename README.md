@@ -2,7 +2,7 @@
   <img src="ui/public/aria-logo.svg" alt="Aria logo" width="140" />
 </p>
 
-<h1 align="center">Aria Workflow Assistant</h1>
+<h1 align="center">Automation & Reasoning Intelligent Agent</h1>
 
 <p align="center">
   Open-source AI agent for building and operating n8n workflows with a skills-first architecture.
