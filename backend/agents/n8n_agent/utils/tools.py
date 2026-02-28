@@ -18,10 +18,11 @@ instance, which is created at runtime.  The ``create_skill_tools()`` factory
 captures the store via closure, so each tool invocation reads from the same
 cached store.
 
-**Dynamic docstrings**: After creation, each tool's docstring is overwritten
-to include the list of available skill names.  This is critical because the
-LLM sees tool docstrings as part of the tool schema — without the skill list,
-the LLM wouldn't know which skill names are valid arguments.
+**Tool construction**: Tools are built with ``StructuredTool.from_function()``
+so that descriptions (including the list of available skill names) are set at
+construction time rather than via post-hoc docstring mutation.  This avoids a
+fragile pattern where ``@tool`` may freeze the description before the
+docstring overwrite takes effect.
 """
 
 from __future__ import annotations
@@ -29,11 +30,9 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING
 
-from langchain_core.tools import tool
+from langchain_core.tools import BaseTool, StructuredTool
 
 if TYPE_CHECKING:
-    from langchain_core.tools import BaseTool
-
     from n8n_agent.skills import SkillStore
 
 
@@ -51,8 +50,7 @@ def create_skill_tools(store: SkillStore) -> list[BaseTool]:
     """
     available = ", ".join(store.get_skill_names()) or "none"
 
-    @tool
-    def load_skill(skill_name: str) -> str:
+    def _load_skill(skill_name: str) -> str:
         """Load expert knowledge for a skill."""
         parsed = store.load(skill_name)
         if parsed is None:
@@ -73,8 +71,7 @@ def create_skill_tools(store: SkillStore) -> list[BaseTool]:
             "available_files": store.list_supporting_files(skill_name),
         })
 
-    @tool
-    def read_skill_file(skill_name: str, filename: str) -> str:
+    def _read_skill_file(skill_name: str, filename: str) -> str:
         """Read a supporting file from a skill folder."""
         try:
             content = store.read_supporting_file(skill_name, filename)
@@ -86,25 +83,32 @@ def create_skill_tools(store: SkillStore) -> list[BaseTool]:
         except (FileNotFoundError, ValueError) as e:
             return json.dumps({"error": f"Error reading file: {e}"})
 
-    # Overwrite the docstrings to include the list of available skills.
-    # The LangChain @tool decorator uses the docstring as the tool's
-    # "description" in the JSON schema sent to the LLM.  By including
-    # the skill names here, the LLM knows which values are valid for
-    # the skill_name parameter without needing to see the system prompt.
-    load_skill.__doc__ = (
-        f"Load expert knowledge for a skill. Returns JSON with the skill's "
-        f"instructions and a list of available supporting files.\n\n"
-        f"Available skills: {available}\n\n"
-        f"Args:\n    skill_name: Exact name of the skill to load."
-    )
-    read_skill_file.__doc__ = (
-        f"Read a supporting file from a skill folder. Returns JSON with the "
-        f"file content.\n\n"
-        f"Use this to access reference documents listed in the "
-        f"'available_files' field of a loaded skill.\n\n"
-        f"Available skills: {available}\n\n"
-        f"Args:\n    skill_name: Name of the skill that owns the file.\n"
-        f"    filename: Name of the file to read (from the skill's available_files)."
+    load_skill_tool = StructuredTool.from_function(
+        func=_load_skill,
+        name="load_skill",
+        description=(
+            "Load expert knowledge for a skill. Returns JSON with the skill's "
+            "instructions and a list of available supporting files.\n\n"
+            f"Currently available skills: {available}\n\n"
+            "Note: If this list seems outdated, the load_skill tool will return "
+            "the current list of available skills in its error response if an "
+            "invalid skill name is provided.\n\n"
+            "Args:\n    skill_name: Exact name of the skill to load."
+        ),
     )
 
-    return [load_skill, read_skill_file]  # type: ignore[list-item]
+    read_skill_file_tool = StructuredTool.from_function(
+        func=_read_skill_file,
+        name="read_skill_file",
+        description=(
+            "Read a supporting file from a skill folder. Returns JSON with the "
+            "file content.\n\n"
+            "Use this to access reference documents listed in the "
+            "'available_files' field of a loaded skill.\n\n"
+            f"Available skills: {available}\n\n"
+            "Args:\n    skill_name: Name of the skill that owns the file.\n"
+            "    filename: Name of the file to read (from the skill's available_files)."
+        ),
+    )
+
+    return [load_skill_tool, read_skill_file_tool]

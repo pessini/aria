@@ -56,16 +56,7 @@ Instead, you MUST use the provided skill access tools:
 
 ### Task-to-Skill Mapping
 
-| Task | Required Skill(s) |
-|------|-------------------|
-| Creating or modifying workflows | `n8n-workflow-patterns` + `n8n-mcp-tools-expert` |
-| Configuring nodes | `n8n-node-configuration` |
-| Writing JavaScript code nodes | `n8n-code-javascript` |
-| Writing Python code nodes | `n8n-code-python` |
-| Using expressions | `n8n-expression-syntax` |
-| Validation or error troubleshooting | `n8n-validation-expert` |
-| Understanding MCP tool usage | `n8n-mcp-tools-expert` |
-
+Match your current task to the skill descriptions, tags, and task triggers listed in the catalog below.
 If a task spans multiple categories, load all applicable skills before proceeding.
 
 ## Available Skills
