@@ -16,8 +16,7 @@ export default function LandingView({
   onThemeChange
 }: LandingViewProps) {
   const placeholder = useRotatingPlaceholder();
-  return (
-    <div className="relative h-full flex-col px-4 pt-16 flex items-center justify-center">
+  return <div className="relative h-full flex-col px-4 pt-16 flex items-center justify-center">
       {/* Theme Toggle - Top Right */}
       <div className="absolute right-4 top-4">
         <ThemeToggle theme={theme} onThemeChange={onThemeChange} />
@@ -27,23 +26,20 @@ export default function LandingView({
         {/* ARIA Branding - Top Section */}
         <div className="text-center space-y-4 flex flex-col items-center">
           <img src={ariaLogo} alt="ARIA logo" className="h-20 w-20" />
-          <div className="text-center space-y-2">
-            <h1 className="text-5xl font-bold text-foreground tracking-tight">
-              ARIA
-            </h1>
-            <p className="text-lg text-muted-foreground">
-              Automation & Reasoning Intelligent Agent
-            </p>
-          </div>
+          <h1 className="text-5xl font-bold text-foreground tracking-tight">
+            ARIA
+          </h1>
+          <p className="text-lg text-muted-foreground">
+            Automation & Reasoning Intelligent Agent
+          </p>
         </div>
-
+        
         {/* Input Section */}
         <div className="space-y-4 my-[200px]">
-
-
+          
+          
           <ChatInput onSend={onSendMessage} isLoading={isLoading} placeholder={placeholder} variant="landing" />
         </div>
       </div>
-    </div>
-  );
+    </div>;
 }
