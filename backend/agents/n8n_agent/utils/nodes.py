@@ -40,12 +40,13 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import uuid
 from datetime import UTC, datetime
 from typing import Any, Literal, Union, cast
 
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage, trim_messages
 from langchain_core.tools import BaseTool
 from langchain_ollama import ChatOllama
 from langchain_openai import ChatOpenAI
@@ -86,8 +87,8 @@ RETRYABLE_STATUS_CODES = ("429", "502", "503", "504")
 # tool_node pass.  The n8n-mcp server creates a new session per tool call;
 # bursting multiple calls can exhaust the session pool and trigger 429s.
 # Skill tools (load_skill, read_skill_file) are local and don't need this.
-# Set to 0 to disable rate limiting for development/testing.
-INTER_CALL_DELAY = 0
+# Default: 0.5s.  Override via MCP_INTER_CALL_DELAY env var (e.g. "0" for tests).
+INTER_CALL_DELAY = float(os.environ.get("MCP_INTER_CALL_DELAY", "0.5"))
 
 # Tool names that are local (in-process) skill operations rather than remote
 # MCP calls.  Used to skip the inter-call delay for these tools.
@@ -140,9 +141,9 @@ def load_chat_model(
 ) -> BaseChatModel:
     """Factory function to create a LangChain chat model instance.
 
-    Called from ``agent_node`` and ``error_summary_node`` on every invocation.
-    A new model instance is created each time (these are lightweight wrappers
-    around HTTP clients, not persistent connections).
+    Called once by ``Context.llm`` on first access and cached for the
+    lifetime of the ``Context`` instance.  Previously this was called on
+    every ``agent_node`` / ``error_summary_node`` invocation.
 
     Note: OpenAI reads ``OPENAI_API_KEY`` from the environment automatically
     (handled by the ``langchain-openai`` package), so no explicit API key
@@ -310,8 +311,8 @@ async def _execute_tool_calls(
     execution doesn't meaningfully hurt latency.
 
     **Structured error format**: Error messages follow a parseable format
-    (``TOOL_ERROR attempt=N type=... retryable=...``) so the LLM can reason
-    about whether to retry or try a different approach.
+    (``TOOL_ERROR batch_failure=N type=... retryable=...``) so the LLM can
+    reason about whether to retry or try a different approach.
     """
     tool_messages: list[ToolMessage] = []
     any_error = False
@@ -327,7 +328,7 @@ async def _execute_tool_calls(
             tool_messages.append(
                 ToolMessage(
                     content=(
-                        f"TOOL_ERROR attempt={retry_attempts + 1} "
+                        f"TOOL_ERROR batch_failure={retry_attempts + 1} "
                         f"type=unknown_tool retryable=false\n"
                         f"message: Unknown tool '{tool_name}'."
                     ),
@@ -352,7 +353,7 @@ async def _execute_tool_calls(
             tool_messages.append(
                 ToolMessage(
                     content=(
-                        f"TOOL_ERROR attempt={new_attempt} "
+                        f"TOOL_ERROR batch_failure={new_attempt} "
                         f"type=execution_error retryable={retryable}\n"
                         f"message: {e}"
                     ),
@@ -412,22 +413,38 @@ async def agent_node(state: State, runtime: Runtime[Context]) -> dict:
         n8n_web_url=ctx.n8n_web_url,
     )
 
-    model = load_chat_model(
-        provider=ctx.provider,
-        model=ctx.model,
-        base_url=ctx.base_url,
-    )
+    # Use cached LLM instance from Context (avoids creating a new model
+    # wrapper on every invocation).
+    model = ctx.llm
     # bind_tools() attaches the JSON schemas of all tools to the LLM request,
     # enabling the model to produce structured tool_call outputs.
     model_with_tools = model.bind_tools(all_tools) if all_tools else model
 
+    # Trim message history to prevent context window overflow.
+    # Keep the most recent messages within budget, always preserving
+    # the system message (added separately) and the first human message.
+    trimmed = trim_messages(
+        state["messages"],
+        max_tokens=100,
+        token_counter=len,  # Approximate: count messages, not tokens
+        strategy="last",
+        start_on="human",
+        allow_partial=False,
+    )
+
     response = cast(
         "AIMessage",
         await model_with_tools.ainvoke(
-            [{"role": "system", "content": system_message}, *state["messages"]]
+            [{"role": "system", "content": system_message}, *trimmed]
         ),
     )
-    return {"messages": [response]}
+
+    # Reset tool_call_count when a new user turn begins so the per-turn
+    # limit doesn't carry over from a previous conversation turn.
+    result: dict[str, Any] = {"messages": [response]}
+    if state["messages"] and isinstance(state["messages"][-1], HumanMessage):
+        result["tool_call_count"] = 0
+    return result
 
 
 async def tool_node(state: State, runtime: Runtime[Context]) -> dict:
@@ -457,10 +474,9 @@ async def tool_node(state: State, runtime: Runtime[Context]) -> dict:
     retry_attempts = state.get("tool_retry_attempts", 0)
 
     try:
-        # Use cached tools list (built once during Context.initialize())
-        tools_by_name: dict[str, BaseTool] = {
-            t.name: t for t in ctx.all_tools
-        }
+        # Use cached tool name -> tool mapping from Context (avoids
+        # rebuilding the dict on every tool_node invocation).
+        tools_by_name = ctx.tools_by_name
 
         tool_messages, new_retry_attempts = await _execute_tool_calls(
             tool_calls, tools_by_name, retry_attempts
@@ -503,11 +519,9 @@ async def error_summary_node(state: State, runtime: Runtime[Context]) -> dict:
     """
     ctx = runtime.context
 
-    model = load_chat_model(
-        provider=ctx.provider,
-        model=ctx.model,
-        base_url=ctx.base_url,
-    )
+    # Use cached LLM instance from Context (avoids creating a new model
+    # wrapper on every invocation).
+    model = ctx.llm
 
     response = cast(
         "AIMessage",
@@ -518,8 +532,8 @@ async def error_summary_node(state: State, runtime: Runtime[Context]) -> dict:
             ]
         ),
     )
-    # Reset retry counter so the thread can be reused
-    return {"messages": [response], "tool_retry_attempts": 0}
+    # Reset retry and tool-call counters so the thread can be reused
+    return {"messages": [response], "tool_retry_attempts": 0, "tool_call_count": 0}
 
 
 def should_continue(

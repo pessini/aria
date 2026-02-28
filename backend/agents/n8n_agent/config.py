@@ -34,9 +34,10 @@ import logging
 import os
 from dataclasses import MISSING, dataclass, field, fields
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from langchain_core.language_models import BaseChatModel
     from langchain_core.tools import BaseTool
 
     from n8n_agent.skills import SkillStore
@@ -127,15 +128,47 @@ class Context:
         metadata={"description": "Browser-accessible URL of the n8n web UI."},
     )
 
+    # Private field to track which fields were explicitly provided by the
+    # caller via ``Context.create()``.  Direct construction leaves this
+    # empty, preserving backwards-compatible behaviour where env vars
+    # override any field still at its default value.
+    _explicit_fields: set = field(default_factory=set, init=False, repr=False)
+
     def __post_init__(self) -> None:
-        """Override defaults with environment variables when present.
+        """Initialize private caches and apply env var overrides.
+
+        Environment variable overrides are applied via
+        ``_apply_env_overrides()``.  When constructed directly (e.g.
+        ``Context(ollama_model="qwen3")``), env vars override any field
+        whose current value equals its default — even if the caller
+        explicitly passed that value.  Use ``Context.create()`` instead
+        to protect explicitly provided arguments from env var override.
+        """
+        self._apply_env_overrides()
+
+        # These are lazily initialized by initialize() and cached for the
+        # lifetime of this Context instance.  They are "private" (prefixed
+        # with _) because callers should use the corresponding @property
+        # accessors which raise a clear error if initialize() hasn't been
+        # called yet.
+        self._skill_store: SkillStore | None = None
+        self._mcp_tools: list[BaseTool] | None = None
+        self._all_tools: list[BaseTool] | None = None
+        self._llm: BaseChatModel | None = None
+        self._tools_by_name: dict[str, BaseTool] | None = None
+
+    def _apply_env_overrides(self) -> None:
+        """Override default values with environment variables when present.
 
         The override logic only activates when a field still has its *default*
-        value — meaning the caller did not explicitly set it.  This lets
-        explicit constructor arguments take precedence over env vars, which in
-        turn take precedence over coded defaults.
+        value **and** the field was not explicitly provided by the caller
+        (tracked via ``_explicit_fields``, populated by ``Context.create()``).
 
-        Mapping of field names → environment variable names:
+        When ``_explicit_fields`` is empty (direct construction), the check
+        degrades to the original ``current_value == default_value`` comparison,
+        preserving backwards compatibility.
+
+        Mapping of field names to environment variable names:
 
         ===============  ====================  ============================
         Field            Env Var               Notes
@@ -153,7 +186,11 @@ class Context:
         ===============  ====================  ============================
         """
         for f in fields(self):
-            if not f.init:
+            if not f.init or f.name.startswith("_"):
+                continue
+
+            # Skip fields explicitly provided by the caller via create()
+            if f.name in self._explicit_fields:
                 continue
 
             env_var_name = f.name.upper()
@@ -177,6 +214,8 @@ class Context:
             else:
                 continue
 
+            # When _explicit_fields is empty (direct construction), this
+            # check is the only guard — same as the original behaviour.
             if current_value == default_value:
                 env_value = os.environ.get(env_var_name)
 
@@ -195,14 +234,31 @@ class Context:
                     else:
                         setattr(self, f.name, env_value)
 
-        # These are lazily initialized by initialize() and cached for the
-        # lifetime of this Context instance.  They are "private" (prefixed
-        # with _) because callers should use the corresponding @property
-        # accessors which raise a clear error if initialize() hasn't been
-        # called yet.
-        self._skill_store: SkillStore | None = None
-        self._mcp_tools: list[BaseTool] | None = None
-        self._all_tools: list[BaseTool] | None = None
+    @classmethod
+    def create(cls, **kwargs: Any) -> Context:
+        """Create a Context with proper env var override handling.
+
+        Use this factory instead of direct construction to ensure that
+        explicitly provided arguments — even if equal to the coded
+        defaults — are **not** overridden by environment variables.
+
+        Example::
+
+            # Direct construction: OLLAMA_MODEL env var wins over "qwen3"
+            ctx = Context(ollama_model="qwen3")
+
+            # Factory method: "qwen3" is preserved regardless of env var
+            ctx = Context.create(ollama_model="qwen3")
+        """
+        # __post_init__ runs during cls(**kwargs) and applies overrides
+        # with _explicit_fields still empty (backwards-compatible).
+        # We then restore the caller's explicit values afterward.
+        instance = cls(**kwargs)
+        instance._explicit_fields = set(kwargs.keys())
+        # Re-set any explicit kwargs that __post_init__ may have overridden
+        for key, value in kwargs.items():
+            setattr(instance, key, value)
+        return instance
 
     @property
     def model(self) -> str:
@@ -210,6 +266,25 @@ class Context:
         if self.provider == "openai":
             return self.openai_model
         return self.ollama_model
+
+    @property
+    def llm(self) -> BaseChatModel:
+        """Get or create the cached LLM instance.
+
+        The model is created lazily on first access and reused for all
+        subsequent calls within the lifetime of this ``Context`` instance.
+        This avoids creating a new model wrapper on every ``agent_node``
+        and ``error_summary_node`` invocation.
+        """
+        if self._llm is None:
+            from n8n_agent.utils.nodes import load_chat_model
+
+            self._llm = load_chat_model(
+                provider=self.provider,
+                model=self.model,
+                base_url=self.base_url,
+            )
+        return self._llm
 
     async def initialize(self) -> None:
         """Scan the skill store, load MCP tools, and build the combined tools list.
@@ -252,8 +327,9 @@ class Context:
                 tools = await load_mcp_tools(config)
                 if tools:
                     self._mcp_tools = tools
-                    # Rebuild combined list when MCP tools become available
+                    # Rebuild combined list and name index when MCP tools become available
                     self._all_tools = None
+                    self._tools_by_name = None
                     logger.info("Loaded %d MCP tools", len(self._mcp_tools))
                 elif self._mcp_tools is None:
                     self._mcp_tools = []
@@ -287,3 +363,15 @@ class Context:
         if self._all_tools is None:
             raise RuntimeError("Context not initialized. Call await context.initialize() first.")
         return self._all_tools
+
+    @property
+    def tools_by_name(self) -> dict[str, BaseTool]:
+        """Access the tool name -> tool mapping (cached).
+
+        Built lazily from ``all_tools`` and invalidated whenever the
+        combined tools list is rebuilt (e.g. when MCP tools become
+        available after a retry).
+        """
+        if self._tools_by_name is None:
+            self._tools_by_name = {t.name: t for t in self.all_tools}
+        return self._tools_by_name

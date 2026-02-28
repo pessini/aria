@@ -80,6 +80,12 @@ class SkillMetadata:
                       skill.  Currently declared in frontmatter but dependency
                       auto-loading is not implemented in the ReAct loop — the
                       LLM is expected to load dependencies manually.
+        task_triggers: Short descriptions of tasks that should trigger loading
+                       this skill.  Declared in YAML frontmatter and used to
+                       auto-generate the task-to-skill mapping table.
+        supporting_files: Relative paths to non-SKILL.md files in the skill
+                          directory.  Pre-computed during ``scan()`` to avoid
+                          repeated filesystem walks.
         path: Filesystem path to the SKILL.md file.  Set by the store
               during scanning so that ``load()`` knows where to read from.
     """
@@ -89,6 +95,8 @@ class SkillMetadata:
     version: str = "1.0"
     tags: list[str] = field(default_factory=list)
     dependencies: list[str] = field(default_factory=list)
+    task_triggers: list[str] = field(default_factory=list)
+    supporting_files: list[str] = field(default_factory=list)
     path: Path | None = None
 
     @classmethod
@@ -100,6 +108,7 @@ class SkillMetadata:
             version=str(data.get("version", "1.0")),
             tags=data.get("tags", []),
             dependencies=data.get("dependencies", []),
+            task_triggers=data.get("task_triggers", []),
             path=path,
         )
 
@@ -132,15 +141,32 @@ def parse_skill_file(file_path: Path) -> ParsedSkill:
 
 
 def parse_metadata_only(file_path: Path) -> SkillMetadata:
-    """Parse only the metadata from a SKILL.md file (faster for scanning)."""
+    """Parse only the metadata from a SKILL.md file (faster for scanning).
+
+    Reads line-by-line and stops at the closing --- delimiter,
+    avoiding reading the full file body (which can be 17KB+).
+    """
     if not file_path.exists():
         raise FileNotFoundError(f"Skill file not found: {file_path}")
-    text = file_path.read_text(encoding="utf-8")
-    match = FRONTMATTER_PATTERN.match(text.strip())
-    if not match:
+
+    lines: list[str] = []
+    found_open = False
+    with file_path.open(encoding="utf-8") as f:
+        for line in f:
+            stripped = line.strip()
+            if not found_open:
+                if stripped == "---":
+                    found_open = True
+                continue
+            if stripped == "---":
+                break
+            lines.append(line)
+
+    if not found_open or not lines:
         raise ValueError(f"Invalid skill file format - missing YAML frontmatter: {file_path}")
+
     try:
-        frontmatter_data = yaml.safe_load(match.group(1)) or {}
+        frontmatter_data = yaml.safe_load("".join(lines)) or {}
     except yaml.YAMLError as e:
         raise ValueError(f"Invalid YAML in frontmatter: {e}") from e
     return SkillMetadata.from_dict(frontmatter_data, path=file_path)
@@ -208,6 +234,7 @@ class SkillStore:
         self.skills_dir = Path(skills_dir)
         self._metadata_cache: dict[str, SkillMetadata] = {}
         self._content_cache: dict[str, ParsedSkill] = {}
+        self._catalog_cache: str | None = None
         self._scanned = False
 
     def scan(self) -> dict[str, SkillMetadata]:
@@ -224,7 +251,7 @@ class SkillStore:
         Invalid SKILL.md files (bad YAML, missing frontmatter) are logged as
         warnings and skipped — they don't crash the entire scan.
         """
-        if self._scanned and self._metadata_cache:
+        if self._scanned:
             return self._metadata_cache
 
         self._metadata_cache.clear()
@@ -235,13 +262,20 @@ class SkillStore:
             self._scanned = True
             return self._metadata_cache
 
-        for skill_file in self.skills_dir.rglob("SKILL.md"):
+        for skill_file in self.skills_dir.rglob("*.md"):
+            if skill_file.name.upper() != "SKILL.MD":
+                continue
             try:
                 metadata = parse_metadata_only(skill_file)
                 skill_name = skill_file.parent.name
                 if metadata.name and metadata.name != "unknown":
                     skill_name = metadata.name
                 metadata.path = skill_file
+                metadata.supporting_files = sorted(
+                    str(f.relative_to(skill_file.parent))
+                    for f in skill_file.parent.rglob("*")
+                    if f.is_file() and f.name.upper() != "SKILL.MD"
+                )
                 self._metadata_cache[skill_name] = metadata
                 logger.debug(f"Registered skill: {skill_name}")
             except Exception as e:
@@ -291,12 +325,7 @@ class SkillStore:
         metadata = self._metadata_cache.get(skill_name)
         if not metadata or not metadata.path:
             return []
-        skill_dir = metadata.path.parent
-        return sorted(
-            str(f.relative_to(skill_dir))
-            for f in skill_dir.rglob("*")
-            if f.is_file() and f.name != "SKILL.md"
-        )
+        return metadata.supporting_files
 
     def get_skill_catalog(self) -> str:
         """Generate an XML-structured catalog of all available skills.
@@ -311,11 +340,22 @@ class SkillStore:
         reference documents are available *before* loading the skill.  This
         enables the LLM to make informed decisions about which skills to load
         and which supporting files to request.
+
+        If any skills declare ``task_triggers`` in their frontmatter, a
+        task-to-skill mapping table is appended to help the LLM match
+        incoming tasks to the right skill(s).
+
+        The result is cached in ``_catalog_cache`` and invalidated by
+        ``invalidate()``.
         """
+        if self._catalog_cache is not None:
+            return self._catalog_cache
+
         if not self._scanned:
             self.scan()
         if not self._metadata_cache:
             return "No skills available."
+
         lines: list[str] = []
         for name, metadata in sorted(self._metadata_cache.items()):
             lines.append("<skill>")
@@ -323,11 +363,32 @@ class SkillStore:
             lines.append(f"  <description>{metadata.description}</description>")
             if metadata.tags:
                 lines.append(f"  <tags>{', '.join(metadata.tags)}</tags>")
-            files = self.list_supporting_files(name)
-            if files:
-                lines.append(f"  <supporting_files>{', '.join(files)}</supporting_files>")
+            if metadata.task_triggers:
+                lines.append(f"  <task_triggers>{', '.join(metadata.task_triggers)}</task_triggers>")
+            if metadata.supporting_files:
+                lines.append(f"  <supporting_files>{', '.join(metadata.supporting_files)}</supporting_files>")
             lines.append("</skill>")
-        return "\n".join(lines)
+
+        catalog = "\n".join(lines)
+
+        # Append task-to-skill mapping if any skills have task_triggers
+        mapping_lines: list[str] = []
+        for name, metadata in sorted(self._metadata_cache.items()):
+            if metadata.task_triggers:
+                for trigger in metadata.task_triggers:
+                    mapping_lines.append(f"| {trigger} | `{name}` |")
+
+        if mapping_lines:
+            task_mapping = (
+                "\n\n### Task-to-Skill Mapping\n\n"
+                "| Task | Required Skill(s) |\n"
+                "|------|-------------------|\n"
+                + "\n".join(mapping_lines)
+            )
+            catalog += task_mapping
+
+        self._catalog_cache = catalog
+        return self._catalog_cache
 
     def get_skill_names(self) -> list[str]:
         """Get list of all registered skill names."""
@@ -344,5 +405,6 @@ class SkillStore:
         """
         self._metadata_cache.clear()
         self._content_cache.clear()
+        self._catalog_cache = None
         self._scanned = False
         logger.info("Skill store cache invalidated")
