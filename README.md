@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="ui/public/aria-logo.svg" alt="Aria logo" width="140" />
+  <img src="assets/aria-logo.svg" alt="Aria logo" width="140" />
 </p>
 
 <h1 align="center">Automation & Reasoning Intelligent Agent</h1>
@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="./LICENSE"><img alt="License" src="https://img.shields.io/badge/license-GPL--3.0-blue" /></a>
+  <a href="./LICENSE"><img alt="License" src="https://img.shields.io/badge/license-GPL--3.0--only-blue" /></a>
   <a href="./.github/workflows/backend-ci.yml"><img alt="Backend CI" src="https://img.shields.io/badge/backend-CI-informational" /></a>
   <a href="./SECURITY.md"><img alt="Security Policy" src="https://img.shields.io/badge/security-policy-brightgreen" /></a>
   <a href="https://github.com/ibbybuilds/aegra"><img alt="Aegra" src="https://img.shields.io/badge/aegra-v0.7.2-6f42c1" /></a>
@@ -24,9 +24,11 @@
 
 Aria, powered by [Aegra](https://github.com/ibbybuilds/aegra), helps automation builders and agent developers create, modify, and operate n8n workflows through a single assistant. It combines local skill packs, MCP tools, and n8n API access so workflow tasks are guided by domain best practices before tool execution.
 
+> Read the full story behind this project: [Aria: LangGraph Agent Skills + MCP for n8n Workflows](MEDIUM_LINK)
+
 ## Why Aria?
 
-n8n workflow automation often requires combining workflow design knowledge, node-level configuration details, and reliable execution tooling. Aria packages these concerns into one assistant workflow so users can move faster with fewer errors.
+Aria packages workflow design knowledge, node configuration details, and reliable execution tooling into one assistant so users can move faster with fewer errors.
 
 ## Feature Highlights
 
@@ -276,6 +278,10 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) for contribution guidelines and preferr
 
 This repository does not vendor Aegra source code.
 See [backend/UPSTREAM.md](./backend/UPSTREAM.md) for runtime pinning and upgrade policy.
+
+## License
+
+This project is licensed under the GNU General Public License v3.0 only (GPL-3.0-only). See [LICENSE](./LICENSE).
 
 ## Acknowledgements
 
