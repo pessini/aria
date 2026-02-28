@@ -5,14 +5,14 @@
 <h1 align="center">Automation & Reasoning Intelligent Agent</h1>
 
 <p align="center">
-  Open-source AI agent for building and operating n8n workflows with a skills-first architecture.
+  Open-source LangGraph AI agent for building and operating <a href="https://n8n.io">n8n</a> workflows with a skills-first architecture.
 </p>
 
 <p align="center">
   <a href="./LICENSE"><img alt="License" src="https://img.shields.io/badge/license-GPL--3.0-blue" /></a>
   <a href="./.github/workflows/backend-ci.yml"><img alt="Backend CI" src="https://img.shields.io/badge/backend-CI-informational" /></a>
   <a href="./SECURITY.md"><img alt="Security Policy" src="https://img.shields.io/badge/security-policy-brightgreen" /></a>
-  <img alt="Aegra" src="https://img.shields.io/badge/aegra-v0.7.2-6f42c1" />
+  <a href="https://github.com/ibbybuilds/aegra"><img alt="Aegra" src="https://img.shields.io/badge/aegra-v0.7.2-6f42c1" /></a>
 </p>
 
 <p align="center">
@@ -22,9 +22,7 @@
   <a href="./SECURITY.md">Security</a>
 </p>
 
-Open-source AI agent for n8n workflows, powered by Aegra and a skills-first tool execution model.
-
-Aria helps automation builders and agent developers create, modify, and operate n8n workflows through a single assistant. It combines local skill packs, MCP tools, and n8n API access so workflow tasks are guided by domain best practices before tool execution.
+Aria, powered by [Aegra](https://github.com/ibbybuilds/aegra), helps automation builders and agent developers create, modify, and operate n8n workflows through a single assistant. It combines local skill packs, MCP tools, and n8n API access so workflow tasks are guided by domain best practices before tool execution.
 
 ## Why Aria?
 
@@ -34,10 +32,36 @@ n8n workflow automation often requires combining workflow design knowledge, node
 
 - Skills-first workflow guidance before MCP tool calls
 - Direct n8n integration through n8n-mcp
-- Thin runtime overlay for Aegra config and service wiring
+- Thin runtime overlay for [Aegra](https://github.com/ibbybuilds/aegra) config and service wiring
 - Modular skills architecture under `backend/agents/`
 - Optional UI for local manual end-to-end testing
 - Docker-based local stack for backend + n8n + UI
+
+## Agent Skills
+
+Aria uses a **skills-first architecture** built on [LangGraph](https://langchain-ai.github.io/langgraph/): before the agent calls any tool, it loads the relevant skill pack to ground its reasoning in domain best practices. The skill packs and MCP integration are based on the work of [@czlonkowski](https://github.com/czlonkowski) ([n8n-skills](https://github.com/czlonkowski/n8n-skills), [n8n-mcp](https://github.com/czlonkowski/n8n-mcp)). The design was inspired by [Anthropic's Agent Skills](https://www.anthropic.com/news/skills) and follows the [Agent Skills](https://agentskills.io/home) open format.
+
+### Skill Packs
+
+| Skill | Purpose |
+| --- | --- |
+| `n8n-code-javascript` | JavaScript code node expertise — built-in functions, common patterns, error handling |
+| `n8n-code-python` | Python code node expertise — data access, standard library, error patterns |
+| `n8n-expression-syntax` | n8n expression language — syntax reference, common mistakes, examples |
+| `n8n-mcp-tools-expert` | MCP tools integration — search, validation, and workflow operation guides |
+| `n8n-node-configuration` | Node setup patterns — operation patterns, dependency management |
+| `n8n-validation-expert` | Error troubleshooting — error catalog, false positive identification |
+| `n8n-workflow-patterns` | Workflow architecture — webhooks, scheduled tasks, HTTP APIs, AI agents, DB operations |
+
+### Progressive Disclosure
+
+Skills load in three levels to keep the context window lean:
+
+1. **Catalog** — skill names and one-line descriptions are always in the system prompt
+2. **Instructions** — full `SKILL.md` loaded on demand via `load_skill()`
+3. **Reference** — supporting docs loaded individually via `read_skill_file()`
+
+New skills are **auto-discovered** at startup — just drop a folder with a `SKILL.md` into `backend/agents/n8n_agent/skills/` and restart.
 
 ## Quick Start
 
