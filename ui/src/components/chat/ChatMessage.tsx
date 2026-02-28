@@ -1,5 +1,6 @@
 import { memo } from 'react';
 import { Paperclip } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 import { cn } from '@/lib/utils';
 import type { Message } from '@/lib/llm';
 
@@ -11,48 +12,35 @@ interface ChatMessageProps {
 const ChatMessage = memo(({ message, isStreaming }: ChatMessageProps) => {
   const isAssistant = message.role === 'assistant';
 
-  // Simple markdown-like rendering for code blocks
   const renderContent = (content: string) => {
-    const parts = content.split(/(```[\s\S]*?```)/g);
-    
-    return parts.map((part, index) => {
-      if (part.startsWith('```') && part.endsWith('```')) {
-        const codeContent = part.slice(3, -3);
-        const firstNewline = codeContent.indexOf('\n');
-        const language = firstNewline > 0 ? codeContent.slice(0, firstNewline).trim() : '';
-        const code = firstNewline > 0 ? codeContent.slice(firstNewline + 1) : codeContent;
-        
-        return (
-          <pre
-            key={index}
-            className="my-2 overflow-x-auto rounded-lg bg-secondary/50 p-3 text-sm"
-          >
-            {language && (
-              <div className="mb-2 text-xs font-medium text-muted-foreground">
-                {language}
-              </div>
-            )}
-            <code className="font-mono text-foreground">{code}</code>
-          </pre>
-        );
-      }
-      
-      // Handle inline formatting
-      return (
-        <span key={index} className="whitespace-pre-wrap">
-          {part.split(/(\*\*[^*]+\*\*)/g).map((segment, i) => {
-            if (segment.startsWith('**') && segment.endsWith('**')) {
-              return (
-                <strong key={i} className="font-semibold">
-                  {segment.slice(2, -2)}
-                </strong>
-              );
-            }
-            return segment;
-          })}
-        </span>
-      );
-    });
+    return (
+      <ReactMarkdown
+        components={{
+          a: ({ href, children }) => (
+            <a href={href} target="_blank" rel="noopener noreferrer"
+               className="text-primary underline hover:opacity-80">
+              {children}
+            </a>
+          ),
+          pre: ({ children }) => (
+            <pre className="my-2 overflow-x-auto rounded-lg bg-secondary/50 p-3 text-sm">
+              {children}
+            </pre>
+          ),
+          code: ({ children }) => (
+            <code className="font-mono text-foreground">{children}</code>
+          ),
+          p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+          ul: ({ children }) => <ul className="list-disc pl-4 mb-2">{children}</ul>,
+          ol: ({ children }) => <ol className="list-decimal pl-4 mb-2">{children}</ol>,
+          h1: ({ children }) => <h1 className="text-xl font-bold mb-2">{children}</h1>,
+          h2: ({ children }) => <h2 className="text-lg font-bold mb-2">{children}</h2>,
+          h3: ({ children }) => <h3 className="text-base font-bold mb-1">{children}</h3>,
+        }}
+      >
+        {content}
+      </ReactMarkdown>
+    );
   };
 
   return (
