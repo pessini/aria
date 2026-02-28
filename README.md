@@ -100,10 +100,10 @@ Expected: `200 OK`
 ### Step 6 — Start the UI *(Terminal 2)*
 
 > **Security warning — local development only.**
-> The UI stores the n8n API key in the browser's IndexedDB (plaintext, no encryption).
+> The UI stores conversations and app settings in the browser's IndexedDB (plaintext, no encryption).
 > Any JavaScript running on the same origin — including browser extensions and XSS payloads —
-> can read it. **Do not deploy this UI to a public or shared host, and do not enter a
-> production API key into it.** It exists solely as a local manual testing harness.
+> can read this local data. **Do not deploy this UI to a public or shared host.**
+> It exists solely as a local manual testing harness.
 
 ```bash
 cp ui/.env.example ui/.env
@@ -187,7 +187,7 @@ OLLAMA_MODEL=qwen3
 | `backend/agents/` | Agent graph, tools, prompts, and skill packs |
 | `backend/` | Thin runtime overlay (Aegra config + service compose) pinned to `v0.7.2` |
 | `n8n/` | Local n8n Docker Compose for development |
-| `ui/` | Optional React harness for manual end-to-end checks — **local dev only, not production-safe** (stores API keys in IndexedDB) |
+| `ui/` | Optional React harness for manual end-to-end checks — **local dev only, not production-safe** (stores local conversations/settings in IndexedDB) |
 | `scripts/` | CI and local guard/smoke scripts |
 
 ---

@@ -17,7 +17,7 @@ Use one of these private channels:
 
 1. **GitHub private advisory (preferred):** Go to the repository → Security tab → "Report a vulnerability". GitHub keeps this private until a fix is published.
 
-2. **Email:** [INSERT CONTACT EMAIL]
+2. **Email:** leandro@pessini.me
 
 ## What to Include
 

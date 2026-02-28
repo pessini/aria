@@ -1,0 +1,84 @@
+name: Security Observability
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  gitleaks-informational:
+    name: Gitleaks (Informational)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install gitleaks
+        run: |
+          curl -sSL https://github.com/gitleaks/gitleaks/releases/download/v8.24.2/gitleaks_8.24.2_linux_x64.tar.gz -o /tmp/gitleaks.tar.gz
+          tar -xzf /tmp/gitleaks.tar.gz -C /tmp
+          sudo mv /tmp/gitleaks /usr/local/bin/gitleaks
+          gitleaks version
+
+      - name: Run gitleaks scan (non-blocking)
+        run: |
+          mkdir -p security-reports
+          set +e
+          gitleaks detect --source . --report-format json --report-path security-reports/gitleaks.json
+          status=$?
+          if [ "$status" -ne 0 ]; then
+            echo "Gitleaks reported findings (informational only)."
+          else
+            echo "Gitleaks reported no findings."
+          fi
+          exit 0
+
+      - name: Upload gitleaks report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gitleaks-report
+          path: security-reports/gitleaks.json
+          if-no-files-found: warn
+
+  npm-audit-informational:
+    name: NPM Audit (Informational)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: ui/package-lock.json
+
+      - name: Install UI dependencies
+        run: npm --prefix ui ci
+
+      - name: Run npm audit (non-blocking)
+        run: |
+          mkdir -p security-reports
+          set +e
+          npm --prefix ui audit --omit=dev --json > security-reports/npm-audit.json
+          status=$?
+          if [ "$status" -ne 0 ]; then
+            echo "npm audit reported vulnerabilities (informational only)."
+          else
+            echo "npm audit reported no vulnerabilities."
+          fi
+          exit 0
+
+      - name: Upload npm audit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-audit-report
+          path: security-reports/npm-audit.json
+          if-no-files-found: warn
