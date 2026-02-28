@@ -150,7 +150,7 @@ def load_chat_model(
 
     Args:
         provider: The LLM provider ('ollama' or 'openai').
-        model: The model name (e.g. 'qwen3', 'gpt-4o-mini').
+        model: The model name (e.g. 'qwen3', 'gpt-5-mini').
         base_url: Base URL for Ollama server (ignored for OpenAI).
 
     Returns:

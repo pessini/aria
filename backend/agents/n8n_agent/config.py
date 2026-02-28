@@ -77,7 +77,7 @@ class Context:
     )
 
     openai_model: str = field(
-        default="gpt-4o-mini",
+        default="gpt-5-mini",
         metadata={"description": "Model name for OpenAI."},
     )
 

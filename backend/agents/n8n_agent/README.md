@@ -239,7 +239,7 @@ Placeholders filled at runtime: `{current_time}`, `{skill_catalog}`, `{mcp_tools
 |----------|---------|-------------|
 | `LLM_PROVIDER` | `ollama` | LLM provider: `ollama` or `openai` |
 | `OLLAMA_MODEL` | `qwen3` | Model name for Ollama |
-| `OPENAI_MODEL` | `gpt-4o-mini` | Model name for OpenAI |
+| `OPENAI_MODEL` | `gpt-5-mini` | Model name for OpenAI |
 | `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama server URL |
 | `SKILLS_DIR` | `./skills` (relative to package) | Skills directory path |
 | `MCP_SERVER_URL` | `http://localhost:4244` | MCP server URL |
