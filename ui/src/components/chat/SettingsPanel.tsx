@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, forwardRef } from 'react';
 import { X, Check, AlertCircle, Loader2, Sun, Moon, Monitor } from 'lucide-react';
 import { useLLM } from '@/context/LLMContext';
 import { useTheme } from '@/context/ThemeContext';
@@ -18,7 +18,7 @@ const themeOptions = [
   { value: 'system' as const, label: 'System', icon: Monitor },
 ];
 
-export default function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
+const SettingsPanel = forwardRef<HTMLDivElement, SettingsPanelProps>(({ isOpen, onClose }, ref) => {
   const { langgraphUrl, updateLanggraphUrl, checkConnection, isConnected } = useLLM();
   const { theme, setTheme } = useTheme();
   const [isChecking, setIsChecking] = useState(false);
@@ -45,7 +45,7 @@ export default function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
       />
 
       {/* Panel */}
-      <div className="fixed right-0 top-0 z-50 h-full w-full max-w-md border-l border-border bg-card shadow-xl">
+      <div ref={ref} className="fixed right-0 top-0 z-50 h-full w-full max-w-md border-l border-border bg-card shadow-xl">
         <div className="flex h-full flex-col">
           {/* Header */}
           <div className="flex items-center justify-between border-b border-border p-4">
@@ -147,4 +147,8 @@ export default function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
       </div>
     </>
   );
-}
+});
+
+SettingsPanel.displayName = 'SettingsPanel';
+
+export default SettingsPanel;
