@@ -1,3 +1,4 @@
+import { forwardRef } from 'react';
 import { Sun, Moon } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 
@@ -6,9 +7,9 @@ interface ThemeToggleProps {
   onThemeChange: (isDark: boolean) => void;
 }
 
-export default function ThemeToggle({ theme, onThemeChange }: ThemeToggleProps) {
+const ThemeToggle = forwardRef<HTMLDivElement, ThemeToggleProps>(({ theme, onThemeChange }, ref) => {
   return (
-    <div className="flex items-center gap-1.5">
+    <div ref={ref} className="flex items-center gap-1.5">
       <Sun className="h-4 w-4 text-muted-foreground" />
       <Switch
         checked={theme === 'dark'}
@@ -18,4 +19,8 @@ export default function ThemeToggle({ theme, onThemeChange }: ThemeToggleProps) 
       <Moon className="h-4 w-4 text-muted-foreground" />
     </div>
   );
-}
+});
+
+ThemeToggle.displayName = 'ThemeToggle';
+
+export default ThemeToggle;
