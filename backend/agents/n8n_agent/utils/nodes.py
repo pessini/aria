@@ -341,9 +341,11 @@ async def _execute_tool_calls(
         if i > 0 and tool_name not in SKILL_TOOLS:
             await asyncio.sleep(INTER_CALL_DELAY)
 
+        logger.info("Executing tool '%s' (call %d/%d)", tool_name, i + 1, len(tool_calls))
         try:
             result = await _invoke_with_retry(tool, args)
             content = _format_tool_result(result)
+            logger.info("Tool '%s' succeeded (content length=%d)", tool_name, len(content))
             tool_messages.append(ToolMessage(content=content, tool_call_id=tool_call_id))
         except Exception as e:
             any_error = True
