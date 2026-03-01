@@ -1,6 +1,7 @@
 import { useRef, useEffect } from 'react';
 import ChatMessage from './ChatMessage';
 import ChatInput from './ChatInput';
+import ThinkingIndicator from './ThinkingIndicator';
 import ThemeToggle from '@/components/ThemeToggle';
 import type { Message, FileAttachment } from '@/lib/llm';
 
@@ -41,6 +42,9 @@ export default function ChatView({
             <ChatMessage key={message.id} message={message} />
           ))}
           
+          {/* Thinking indicator — visible before first stream token */}
+          {isLoading && !streamingContent && <ThinkingIndicator />}
+
           {/* Streaming Message */}
           {streamingContent && (
             <ChatMessage
