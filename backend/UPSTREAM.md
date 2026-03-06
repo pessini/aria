@@ -38,18 +38,37 @@ pipx install aegra-cli==0.7.2
 
 - Source project: `https://github.com/czlonkowski/n8n-mcp`
 - Consumed as: Docker image via `backend/n8n-mcp.yml`
+- Pin file: `backend/n8n-mcp-version.txt`
 
 The `n8n-mcp` sidecar runs alongside the Aegra backend and exposes n8n workflows and built-in n8n actions as MCP tools. The agent connects to it over the local Docker network; no source code from that project is vendored here.
 
-Do not modify or fork `n8n-mcp` inside this repository. Pin updates are made by bumping the image tag reference in `backend/n8n-mcp.yml`.
+Do not modify or fork `n8n-mcp` inside this repository.
+
+## Upgrade Process
+
+1. Update `backend/n8n-mcp-version.txt` to the desired release tag.
+2. Run `make bump-n8n-mcp`.
+3. Run `make backend-ci`.
+4. Commit both `backend/n8n-mcp-version.txt` and `backend/n8n-mcp.yml`.
 
 ---
 
 # n8n-skills
 
 - Source project: `https://github.com/czlonkowski/n8n-skills`
-- Relationship: skill pack design patterns and reference implementations
+- Consumed as: vendored skill packs under `backend/agents/n8n_agent/skills/`
+- Pin file: `backend/n8n-skills-sha.txt` (commit SHA)
 
-The skill packs under `backend/agents/n8n_agent/skills/` follow the conventions established by `n8n-skills`. New skills contributed to this repo should align with those patterns (SKILL.md frontmatter, tool definitions, prompt structure).
+Skill packs under `backend/agents/n8n_agent/skills/` are copied from the upstream
+`n8n-skills` repository at the commit pinned in `backend/n8n-skills-sha.txt`.
 
-No source files from `n8n-skills` are vendored here.
+Do not manually edit vendored skill files. Changes should be made upstream
+in `czlonkowski/n8n-skills` and then synced here.
+
+## Sync / Upgrade Process
+
+1. Update `backend/n8n-skills-sha.txt` to the desired upstream commit SHA.
+2. Run `make sync-skills`.
+3. Review changes with `git diff`.
+4. Run `make backend-ci`.
+5. Commit the updated pin file and skill files together.

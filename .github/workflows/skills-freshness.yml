@@ -1,0 +1,25 @@
+name: Skills Freshness Check
+
+on:
+  schedule:
+    - cron: '0 9 * * 1'  # Every Monday at 9 AM UTC
+  workflow_dispatch:
+
+jobs:
+  check-freshness:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for upstream changes
+        run: |
+          PINNED=$(tr -d '[:space:]' < backend/n8n-skills-sha.txt)
+          LATEST=$(gh api repos/czlonkowski/n8n-skills/commits/main --jq '.sha')
+          if [[ "$PINNED" == "$LATEST" ]]; then
+            echo "Skills are up to date with upstream."
+          else
+            echo "::warning::Upstream n8n-skills has new commits. Pinned: ${PINNED:0:12}, Latest: ${LATEST:0:12}"
+            echo "Run: gh api repos/czlonkowski/n8n-skills/commits/main --jq '.sha' > backend/n8n-skills-sha.txt && make sync-skills"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

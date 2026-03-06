@@ -58,6 +58,26 @@ make ui-build
 - Update docs when commands/configs/paths change.
 - Use clear commit messages (Conventional Commits preferred).
 
+## Upgrading External Dependencies
+
+**Skills** (from `czlonkowski/n8n-skills`):
+
+```bash
+gh api repos/czlonkowski/n8n-skills/commits/main --jq '.sha' > backend/n8n-skills-sha.txt
+make sync-skills
+make backend-ci
+```
+
+**n8n-mcp** (Docker image):
+
+```bash
+echo "vX.Y.Z" > backend/n8n-mcp-version.txt
+make bump-n8n-mcp
+make backend-ci
+```
+
+See `backend/UPSTREAM.md` for full pin/upgrade policy.
+
 ## Project-Specific Docs
 
 - Architecture and ownership: `ARCHITECTURE.md`

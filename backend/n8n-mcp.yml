@@ -2,7 +2,7 @@ name: aria-n8n-mcp
 
 services:
   n8n-mcp:
-    image: ghcr.io/czlonkowski/n8n-mcp:latest
+    image: ghcr.io/czlonkowski/n8n-mcp:v2.35.6
     container_name: n8n-mcp
     ports:
       - "4244:4244"

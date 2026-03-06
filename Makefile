@@ -1,4 +1,4 @@
-.PHONY: help backend-cli-install backend-up backend-down backend-logs backend-smoke skills-lint skills-test backend-ci n8n-up n8n-down ui-install ui-dev ui-test ui-build ui-docker-up ui-docker-down
+.PHONY: help backend-cli-install backend-up backend-down backend-logs backend-smoke skills-lint skills-test backend-ci n8n-up n8n-down ui-install ui-dev ui-test ui-build ui-docker-up ui-docker-down sync-skills check-skills-pin bump-n8n-mcp
 
 help:
 	@echo "Available commands:"
@@ -16,6 +16,9 @@ help:
 	@echo "  make ui-build         - Build UI"
 	@echo "  make n8n-up           - Start local n8n instance (http://localhost:4245)"
 	@echo "  make n8n-down         - Stop local n8n instance"
+	@echo "  make sync-skills      - Sync vendored skills from upstream n8n-skills"
+	@echo "  make check-skills-pin - Validate skills pin file format"
+	@echo "  make bump-n8n-mcp     - Apply n8n-mcp version pin to compose file"
 	@echo "  make ui-docker-up     - Start UI docker compose"
 	@echo "  make ui-docker-down   - Stop and remove UI docker compose"
 
@@ -50,8 +53,18 @@ skills-test:
 
 backend-ci:
 	./scripts/check-thin-runtime.sh
+	./scripts/check-skills-sync.sh
 	$(MAKE) skills-lint
 	$(MAKE) skills-test
+
+sync-skills:
+	./scripts/sync-skills.sh
+
+check-skills-pin:
+	./scripts/check-skills-sync.sh
+
+bump-n8n-mcp:
+	./scripts/pin-n8n-mcp.sh
 
 ui-install:
 	npm --prefix ui ci
