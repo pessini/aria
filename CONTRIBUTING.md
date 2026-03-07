@@ -71,7 +71,7 @@ make backend-ci
 **n8n-mcp** (Docker image):
 
 ```bash
-echo "vX.Y.Z" > backend/n8n-mcp-version.txt
+echo "latest" > backend/n8n-mcp-version.txt  # or a commit tag like "main-8878c99"
 make bump-n8n-mcp
 make backend-ci
 ```

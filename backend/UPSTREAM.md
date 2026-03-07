@@ -46,7 +46,7 @@ Do not modify or fork `n8n-mcp` inside this repository.
 
 ## Upgrade Process
 
-1. Update `backend/n8n-mcp-version.txt` to the desired release tag.
+1. Update `backend/n8n-mcp-version.txt` to the desired image tag (e.g. `latest` or a commit tag like `main-8878c99`).
 2. Run `make bump-n8n-mcp`.
 3. Run `make backend-ci`.
 4. Commit both `backend/n8n-mcp-version.txt` and `backend/n8n-mcp.yml`.
